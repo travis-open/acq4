@@ -52,6 +52,7 @@ class PairedPulseAnalyzer(AnalysisModule):
             #('Pairing Plots', {'type': 'ctrl', 'object': self.pairingPlot, 'pos':('below', 'EPSP Plots')})
         ])
         self.initializeElements()
+        self.fileLoader = self.getElement('File Loader', create=True)
            
         
         ## Set labels/titles on plots  -- takes a lot of space
@@ -146,6 +147,9 @@ class PairedPulseAnalyzer(AnalysisModule):
         #self.ctrl.createSummaryBtn.clicked.connect(self.summarySheetRequested)
         #self.ctrl.createBlindSummaryBtn.clicked.connect(self.blindSummarySheetRequested)
         #self.ctrl.defaultRgnBtn.clicked.connect(self.defaultBtnClicked)
+        self.ctrl.agonistStartBtn.clicked.connect(self.getAgonistStartTime)
+        self.ctrl.agonistEndBtn.clicked.connect(self.getAgonistEndTime)
+        self.ctrl.fiveMinuteBtn.clicked.connect(self.fiveMinuteBtnClicked)
 
         self.baselineRgn.setRegion((0,0.009))
         self.pspRgn.setRegion((0.012, 0.02))
@@ -173,7 +177,6 @@ class PairedPulseAnalyzer(AnalysisModule):
         """Called by FileLoader when the load file button is clicked, once for each selected file.
                 files - a list of the file currently selected in FileLoader
         """
-        print "loadFileRequested...."
         if files is None:
             return
 
@@ -205,6 +208,32 @@ class PairedPulseAnalyzer(AnalysisModule):
         self.updateExptPlot()
         self.updateTracesPlot()
         return True
+
+    def getAgonistStartTime(self):
+        f = self.fileLoader.selectedFiles()
+        if len(f) > 1:
+            raise Exception('Please select only one file')
+
+        timestamp = f[0].info()['__timestamp__']
+        time = timestamp - self.expStart
+
+        self.ctrl.agonistStartLabel.setText(str(time)+' sec')
+        self.agonistStartTime = time
+
+    def getAgonistEndTime(self):
+        f = self.fileLoader.selectedFiles()
+        if len(f) > 1:
+            raise Exception('Please select only one file')
+
+        timestamp = f[0].info()['__timestamp__']
+        time = timestamp - self.expStart
+
+        self.ctrl.agonistEndLabel.setText(str(time)+' sec')
+        self.agonistEndTime = time
+
+    def fiveMinuteBtnClicked(self):
+        self.agonistEndTime = self.agonistStartTime + 300.
+        self.ctrl.agonistEndLabel.setText(str(self.agonistEndTime)+' sec')
 
     # def loadPairingFileRequested(self, files):
     #     """Called by FileLoader when the load pairing file button is clicked, once for each selected file.
@@ -796,7 +825,7 @@ class PairedPulseAnalyzer(AnalysisModule):
 
     def storeToDB(self):
         self.storeTrialsToDB()
-        #self.storeCellInfoToDB()
+        self.storeCellInfoToDB()
 
     def storeTrialsToDB(self):
         if len(self.analysisResults) == 0:
@@ -916,6 +945,8 @@ class PairedPulseAnalyzer(AnalysisModule):
             #('pspTime', 'real'),
             #('firstSpikeTime', 'real'),
             #('pairingInterval', 'real'),
+            ('agonistStartTime', 'real'),
+            ('agonistEndTime', 'real'),
             ('bath_drug', 'text'),
             ('challenge_drug', 'text'),
             ])
@@ -929,6 +960,8 @@ class PairedPulseAnalyzer(AnalysisModule):
         #record['pspTime'] = self.ctrl.pspStartTimeSpin.value()
         #record['firstSpikeTime'] = self.ctrl.spikePeakSpin.value()
         #record['pairingInterval'] = record['firstSpikeTime'] - record['pspTime']
+        record['agonistStartTime'] = self.agonistStartTime
+        record['agonistEndTime'] = self.agonistEndTime
         record['bath_drug'] = cell.info().get('antagonist_code', '')
         record['challenge_drug'] = cell.info().get('agonist_code', '')
 
