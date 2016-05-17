@@ -185,7 +185,7 @@ class PairedPulseAnalyzer(AnalysisModule):
         with pg.ProgressDialog("Loading data..", 0, n) as dlg:
             for f in files:
                 arr = np.zeros((len(f.ls())), dtype=[('timestamp', float), ('data', object)])
-                maxi = -1
+                maxi = 0
                 for i, protoDir in enumerate(f.ls()):
                     df = self.dataModel.getClampFile(f[protoDir])
                     if df is None:
@@ -303,10 +303,10 @@ class PairedPulseAnalyzer(AnalysisModule):
         if not self.ctrl.averageCheck.isChecked():
             data = self.traces[(self.traces['timestamp'] > rgn[0]+self.expStart)
                               *(self.traces['timestamp'] < rgn[1]+self.expStart)
-                              ]['data']
+                              ]
             timeKey = 'timestamp'
             dataKey='data'
-            for i, d in enumerate(data):
+            for i, d in enumerate(data['data']):
                 self.plots.tracesPlot.plot(d['primary'], pen=pg.intColor(i, len(data)))
 
         ### plot only the average traces with timestamps within the selected region
@@ -359,6 +359,9 @@ class PairedPulseAnalyzer(AnalysisModule):
         self.averagedTraces = np.zeros(n, dtype=[('avgTimeStamp', float), ('avgData', object), ('origTimes', object)])
 
     def averageCtrlChanged(self):
+        if len(self.traces) == 0:
+            return
+
         if not self.ctrl.averageCheck.isChecked(): ## if we're not averaging anyway, we don't need to do anything
             self.updateExptPlot()
             self.updateTracesPlot()
@@ -672,8 +675,12 @@ class PairedPulseAnalyzer(AnalysisModule):
             times = self.averagedTraces['avgTimeStamp']
             traces = self.averagedTraces['avgData']
         else:
-            times = self.traces['timestamp']
-            traces = self.traces['data']
+            if self.ctrl.excludeAPsCheck.isChecked():
+                traces = self.excludeAPs()
+            else:
+                traces = self.traces
+            times = traces['timestamp']
+            traces = traces['data']
 
         self.analysisResults = np.zeros(len(traces), dtype=[('time', float), 
                                                             ('RMP', float), 
@@ -840,6 +847,7 @@ class PairedPulseAnalyzer(AnalysisModule):
         trialFields = OrderedDict([
             ('CellDir', 'directory:Cell'),
             ('ProtocolSequenceDir', 'directory:ProtocolSequence'),
+            ('ProtocolDir', 'directory:Protocol'),
             ('timestamp', 'real'),
             ('time', 'real'),
             ('RMP', 'real'),
@@ -867,7 +875,7 @@ class PairedPulseAnalyzer(AnalysisModule):
             ('includedProtocols', 'text')
             ])
 
-        db.checkTable(table, owner=self.dbIdentity+'.trials', columns=trialFields, create=True, addUnknownColumns=True, indexes=[['CellDir'], ['ProtocolSequenceDir']])
+        db.checkTable(table, owner=self.dbIdentity+'.trials', columns=trialFields, create=True, addUnknownColumns=True, indexes=[['CellDir'], ['ProtocolSequenceDir'], ['ProtocolDir']])
 
 
         data = np.zeros(len(self.analysisResults), dtype=[
@@ -915,7 +923,7 @@ class PairedPulseAnalyzer(AnalysisModule):
             data[i]['time'] = self.analysisResults[i]['time'] - self.expStart
             data[i]['RMP'] = self.analysisResults[i]['RMP']
             data[i]['inputResistance'] = self.analysisResults[i]['inputResistance']
-            data[i]['includedProtocols'] = self.averagedTraces[i]['origTimes'] ### TODO: make this protocolDirs instead of timestamps....
+            #data[i]['includedProtocols'] = self.averagedTraces[i]['origTimes'] ### TODO: make this protocolDirs instead of timestamps....
             data[i]['pairedPulseRatio_slope'] = self.analysisResults[i]['pspSlope2']/self.analysisResults[i]['pspSlope1']
             data[i]['pairedPulseRatio_amp'] = self.analysisResults[i]['pspAmplitude2']/self.analysisResults[i]['pspAmplitude1']
             for j, bs in enumerate([baselineSlope1, baselineSlope2]):
