@@ -30,9 +30,11 @@ class LaserDevGui(QtGui.QWidget):
                 self.ui.wavelengthCombo.addItem(x)
             self.ui.wavelengthSpin.setOpts(bounds=self.dev.getWavelengthRange())
                 
-        if not self.dev.hasPCell:
-            self.ui.pCellGroup.hide()
+        if not self.dev.hasPowerModulation:
+            #self.ui.pCellGroup.hide()
+            self.ui.powerModTab.setEnabled(False)
         else:
+            self.ui.expectedPowerGroup.hide()
             self.ui.minVSpin.setOpts(step=0.1, minStep=0.01, siPrefix=True, dec=True)
             self.ui.maxVSpin.setOpts(step=0.1, minStep=0.01, siPrefix=True, dec=True)
             self.ui.stepsSpin.setOpts(step=1, dec=True)
@@ -59,6 +61,8 @@ class LaserDevGui(QtGui.QWidget):
         defPowerMeter = self.dev.config.get('defaultPowerMeter', None)
         #self.ui.microscopeCombo.setCurrentText(defMicroscope)
         self.ui.meterCombo.setCurrentText(defPowerMeter)
+        powerInd = self.dev.config.get('powerIndicator', {}).get('channel', ['None configured'])[0]
+        self.ui.powerIndicatorLabel.setText(str(powerInd))
         #devs = self.dev.dm.listDevices()
         #for d in devs:
             #self.ui.microscopeCombo.addItem(d)
@@ -75,6 +79,8 @@ class LaserDevGui(QtGui.QWidget):
         ## Populate list of calibrations
         #self.microscopes = []
         self.updateCalibrationList()
+        if self.dev.hasPowerModulation:
+            self.updatePowerCalibrationTree()
         
         ## get scope device to connect objective changed signal
         #self.scope = None
@@ -91,6 +97,8 @@ class LaserDevGui(QtGui.QWidget):
         
         self.ui.calibrateBtn.clicked.connect(self.calibrateClicked)
         self.ui.deleteBtn.clicked.connect(self.deleteClicked)
+        self.ui.calibratePowerBtn.clicked.connect(self.calibratePowerClicked)
+        self.ui.deletePowerBtn.clicked.connect(self.deletePowerCalibrationClicked)
         self.ui.currentPowerRadio.toggled.connect(self.currentPowerToggled)
         self.ui.expectedPowerRadio.toggled.connect(self.expectedPowerToggled)
         self.ui.expectedPowerSpin.valueChanged.connect(self.expectedPowerSpinChanged)
@@ -287,7 +295,14 @@ class LaserDevGui(QtGui.QWidget):
         self.updateCalibrationList()
     
 
-            
+    def calibratePowerClicked(self):
+        pass
+
+    def deletePowerCalibrationClicked(self):
+        pass
+
+    def updatePowerCalibrationTree(self):
+        pass
         
        
         

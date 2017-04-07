@@ -100,7 +100,8 @@ class Laser(DAQGeneric, OptomechDevice):
         self.hasShutter = False
         self.hasTriggerableShutter = False
         self.hasQSwitch = False
-        self.hasPCell = False
+        #self.hasPCell = False
+        self.hasPowerModulation = False
         self.hasTunableWavelength = False
         
         self.params = {
@@ -124,9 +125,12 @@ class Laser(DAQGeneric, OptomechDevice):
         if 'qSwitch' in config:
             daqConfig['qSwitch'] = config['qSwitch']
             self.hasQSwitch = True
-        if 'pCell' in config:
-            daqConfig['pCell'] = config['pCell']
-            self.hasPCell = True
+        #if 'pCell' in config:
+        #    daqConfig['pCell'] = config['pCell']
+        #    self.hasPCell = True
+        if 'powerModulator' in config:
+            daqConfig['powerModulator'] = config['powerModulator']
+            self.hasPowerModulation = True
                         
         daqConfig['power'] = {'type': 'ao', 'units': 'W'}  ## virtual channel used for creating control widgets
         DAQGeneric.__init__(self, manager, daqConfig, name)
@@ -135,7 +139,8 @@ class Laser(DAQGeneric, OptomechDevice):
         self.lock = Mutex(QtCore.QMutex.Recursive)
         self.variableLock = Mutex(QtCore.QMutex.Recursive)
         self.calibrationIndex = None
-        self.pCellCalibration = None
+        #self.pCellCalibration = None
+        self.powerCalibration = None
         self.getPowerHistory()
         
         #self.scope = manager.getDevice(self.config['scope'])
@@ -159,7 +164,8 @@ class Laser(DAQGeneric, OptomechDevice):
             if self.calibrationIndex is None:
                 index = self.readConfigFile('index')
                 self.calibrationIndex = index
-                self.pCellCalibration = index.get('pCellCalibration', None)
+                #self.pCellCalibration = index.get('pCellCalibration', None)
+                self.powerCalibration = index.get('powerCalibration', None)
             return self.calibrationIndex
         
     def getPowerHistory(self):
@@ -272,9 +278,12 @@ class Laser(DAQGeneric, OptomechDevice):
             if self.hasTriggerableShutter:
                 ch = 'shutter'
                 daqName = DAQGeneric.getDAQName(self, 'shutter')
-            elif self.hasPCell:
-                ch = 'pCell'
-                daqName = DAQGeneric.getDAQName(self, 'pCell')
+            #elif self.hasPCell:
+            #    ch = 'pCell'
+            #    daqName = DAQGeneric.getDAQName(self, 'pCell')
+            elif self.hasPowerModulation:
+                ch = 'powerModulator'
+                daqName = DaqGeneric.getDAQName(self, ch)
             elif self.hasQSwitch:
                 ch = 'qSwitch'
                 daqName = DAQGeneric.getDAQName(self, 'qSwitch')
@@ -295,8 +304,8 @@ class Laser(DAQGeneric, OptomechDevice):
         index = self.getCalibrationIndex()
         
         ## Run calibration
-        if not self.hasPCell:
-            power, transmission = self.runCalibration(powerMeter=powerMeter, measureTime=mTime, settleTime=sTime)
+        if not self.hasPowerModulation:
+            power, transmission = self.runTransmissionCalibration(powerMeter=powerMeter, measureTime=mTime, settleTime=sTime)
             #self.setParam(currentPower=power, scopeTransmission=transmission)  ## wrong--power is samplePower, not outputPower.
         else:
             raise Exception("Pockel Cell calibration is not yet implented.")
@@ -337,7 +346,7 @@ class Laser(DAQGeneric, OptomechDevice):
         self.writeCalibrationIndex(index)
         self.updateSamplePower()
         
-    def runCalibration(self, powerMeter=None, measureTime=0.1, settleTime=0.005, pCellVoltage=None, rate = 100000):
+    def runTransmissionCalibration(self, powerMeter=None, measureTime=0.1, settleTime=0.005, pCellVoltage=None, rate = 100000):
         daqName = self.getDAQName()[0]
         duration = measureTime + settleTime
         nPts = int(rate * duration)
@@ -353,7 +362,8 @@ class Laser(DAQGeneric, OptomechDevice):
             cmdOff[powerInd[0]] = {powerInd[1]: {'record':True, 'recordInit':False}}
             
         if pCellVoltage is not None:
-            if self.hasPCell:
+            #if self.hasPCell:
+            if self.hasPowerModulation:
                 a = np.zeros(nPts, dtype=float)
                 a[:] = pCellVoltage
                 cmdOff[self.name()]['pCell'] = a
@@ -545,7 +555,7 @@ class Laser(DAQGeneric, OptomechDevice):
         if 'switchWaveform' in cmd:
             cmdWaveform = cmd['switchWaveform']
             vals = np.unique(cmd['switchWaveform'])
-            if not self.hasPCell and len(vals)==2 and (1 or 1.0) not in vals: ## check to make sure we can give the specified power.
+            if not self.hasPowerModulation and len(vals)==2 and (1 or 1.0) not in vals: ## check to make sure we can give the specified power.
                 raise Exception('An analog power modulator is neccessary to get power values other than zero and one (full power). The following values (as percentages of full power) were requested: %s. This %s device does not have an analog power modulator.' %(str(vals), self.name()))
         elif 'powerWaveform' in cmd:
             cmdWaveform = cmd['powerWaveform']
@@ -555,7 +565,7 @@ class Laser(DAQGeneric, OptomechDevice):
         nPts = len(cmdWaveform)
         daqCmd = {}
         #if self.dev.config.get('pCell', None) is not None:
-        if self.hasPCell:
+        if self.hasPowerModulation:
             ## convert power values using calibration data
             if 'switchWaveform' in cmd:
                 with self.variableLock:
