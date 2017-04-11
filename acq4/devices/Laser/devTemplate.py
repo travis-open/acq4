@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'acq4\devices\Laser\devTemplate.ui'
 #
-# Created: Fri Apr 07 15:43:39 2017
+# Created: Tue Apr 11 12:28:08 2017
 #      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -214,10 +214,10 @@ class Ui_Form(object):
         self.settlingSpin.setSizePolicy(sizePolicy)
         self.settlingSpin.setObjectName(_fromUtf8("settlingSpin"))
         self.gridLayout_2.addWidget(self.settlingSpin, 4, 4, 1, 1)
-        self.label_6 = QtGui.QLabel(self.groupBox)
-        self.label_6.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
-        self.label_6.setObjectName(_fromUtf8("label_6"))
-        self.gridLayout_2.addWidget(self.label_6, 2, 2, 1, 1)
+        self.powerToUseLabel = QtGui.QLabel(self.groupBox)
+        self.powerToUseLabel.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
+        self.powerToUseLabel.setObjectName(_fromUtf8("powerToUseLabel"))
+        self.gridLayout_2.addWidget(self.powerToUseLabel, 2, 2, 1, 1)
         self.label_2 = QtGui.QLabel(self.groupBox)
         self.label_2.setObjectName(_fromUtf8("label_2"))
         self.gridLayout_2.addWidget(self.label_2, 2, 0, 1, 1)
@@ -293,7 +293,7 @@ class Ui_Form(object):
         self.gridLayout.addWidget(self.tabWidget, 4, 1, 1, 3)
 
         self.retranslateUi(Form)
-        self.tabWidget.setCurrentIndex(1)
+        self.tabWidget.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(Form)
 
     def retranslateUi(self, Form):
@@ -327,7 +327,7 @@ class Ui_Form(object):
         self.scanLabel.setText(_translate("Form", "Measurement Duration", None))
         self.measurementSpin.setSuffix(_translate("Form", " s", None))
         self.settlingSpin.setToolTip(_translate("Form", "Specify the time it takes for the selected power meter to settle on a value.", None))
-        self.label_6.setText(_translate("Form", "Power to Use:", None))
+        self.powerToUseLabel.setText(_translate("Form", "Power to Use:", None))
         self.label_2.setText(_translate("Form", "Power Indicator:", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.transmissionTab), _translate("Form", "Transmission Calibration", None))
         self.powerCalibrationTree.headerItem().setText(0, _translate("Form", "Wavelength", None))

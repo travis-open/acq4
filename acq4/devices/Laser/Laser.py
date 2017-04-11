@@ -159,7 +159,7 @@ class Laser(DAQGeneric, OptomechDevice):
         with self.variableLock:
             return self.params[arg]
     
-    def getCalibrationIndex(self):
+    def getTransmissionCalibrationIndex(self):
         with self.lock:
             if self.calibrationIndex is None:
                 index = self.readConfigFile('index')
@@ -233,7 +233,7 @@ class Laser(DAQGeneric, OptomechDevice):
         if self.hasQSwitch:
             self.setChanHolding('qSwitch', 0)
             
-    def getCalibration(self, opticState=None, wavelength=None):
+    def getTransmissionCalibration(self, opticState=None, wavelength=None):
         """Return the calibrated laser transmission for the given objective and wavelength.
         If either argument is None, then it will be replaced with the currently known value.
         Returns None if there is no calibration."""
@@ -247,7 +247,7 @@ class Laser(DAQGeneric, OptomechDevice):
             wl = wavelength
 
         ## look up transmission value for this objective in calibration list
-        index = self.getCalibrationIndex()
+        index = self.getTransmissionCalibrationIndex()
         vals = index.get(opticState, None)
         if vals is None:
             return None
@@ -257,6 +257,8 @@ class Laser(DAQGeneric, OptomechDevice):
             return None
         
         return vals['transmission']
+
+
             
             
     def opticStateChanged(self, change):
@@ -294,49 +296,23 @@ class Laser(DAQGeneric, OptomechDevice):
         else:
             return DAQGeneric.getDAQName(self, channel)
         
-    def calibrate(self, powerMeter, mTime, sTime):
+    def calibrateTransmission(self, powerMeter, mTime, sTime, power=None):
         #meter = str(self.ui.meterCombo.currentText())
         #obj = self.manager.getDevice(scope).getObjective()['name']
         opticState = self.getDeviceStateKey()
         #print "Laser.calibrate() opticState:", opticState
         wavelength = siFormat(self.getWavelength(), suffix='m')
         date = time.strftime('%Y.%m.%d %H:%M', time.localtime())
-        index = self.getCalibrationIndex()
+        index = self.getTransmissionCalibrationIndex()
         
         ## Run calibration
         if not self.hasPowerModulation:
             power, transmission = self.runTransmissionCalibration(powerMeter=powerMeter, measureTime=mTime, settleTime=sTime)
-            #self.setParam(currentPower=power, scopeTransmission=transmission)  ## wrong--power is samplePower, not outputPower.
         else:
-            raise Exception("Pockel Cell calibration is not yet implented.")
-            #if index.has_key('pCellCalibration') and not self.ui.recalibratePCellCheck.isChecked():
-                #power, transmission = self.runCalibration() ## need to tell it to run with open pCell
-            #else:
-                #minVal = self.ui.minVSpin.value()
-                #maxVal = self.ui.maxVSpin.value()
-                #steps = self.ui.stepsSpin.value()
-                #power = []
-                #arr = np.zeros(steps, dtype=[('voltage', float), ('trans', float)])
-                #for i,v in enumerate(np.linspace(minVal, maxVal, steps)):
-                    #p, t = self.runCalibration(pCellVoltage=v) ### returns power at sample(or where powermeter was), and transmission through whole system
-                    #power.append(p)
-                    #arr[i]['trans']= t
-                    #arr[i]['voltage']= v
-                #power = (min(power), max(power))
-                #transmission = (arr['trans'].min(), arr['trans'].min())
-                #arr['trans'] = arr['trans']/arr['trans'].max()
-                #minV = arr['voltage'][arr['trans']==arr['trans'].min()]
-                #maxV = arr['voltage'][arr['trans']==arr['trans'].max()]
-                #if minV < maxV:
-                    #self.dev.pCellCurve = arr[arr['voltage']>minV * arr['voltage']<maxV]
-                #else:
-                    #self.dev.pCellCurve = arr[arr['voltage']<minV * arr['voltage']>maxV]
-                    
-                #index['pCellCalibration'] = {'voltage': list(self.dev.pCellCurve['voltage']), 
-                                             #'trans': list(self.dev.pCellCurve['trans'])}
-                
-            
-              
+            #raise Exception("Pockel Cell calibration is not yet implented.")
+            if self.getPowerCalibration() is None:
+                raise Exception("Could not find power calibration for %s. Please calibrate power before calibrating transmission." % self.name())
+             
         #if scope not in index:
             #index[scope] = {}
         if opticState not in index:
@@ -346,7 +322,38 @@ class Laser(DAQGeneric, OptomechDevice):
         self.writeCalibrationIndex(index)
         self.updateSamplePower()
         
-    def runTransmissionCalibration(self, powerMeter=None, measureTime=0.1, settleTime=0.005, pCellVoltage=None, rate = 100000):
+    def calibratePower(self):
+        if not self.hasPowerModulation():
+            raise Exception("Power calibration is only applicable to lasers with power modulation (a pockels cell or other analog control).")
+
+        minVal = self.ui.minVSpin.value()
+        maxVal = self.ui.maxVSpin.value()
+        steps = self.ui.stepsSpin.value()
+        arr = np.zeros(steps, dtype=[('voltage', float), ('power', float)])
+        for i,v in enumerate(np.linspace(minVal, maxVal, steps)):
+            #p, t = self.runCalibration(pCellVoltage=v) ### returns power at sample(or where powermeter was), and transmission through whole system
+            p = self.outputPower(powerCmdVoltage=v)
+            arr[i]['power']= p
+            arr[i]['voltage']= v
+
+        ### ToDo:
+        ###     1: Fit voltage/power to function -- there should probably be options for functions to fit data to including linear fit and sine fit
+        ###     2: Write calibration parameters to index. wavelength:{'date':data, 'function':'linear', 'parameters':[]}
+
+        #power = (min(power), max(power))
+        #transmission = (arr['trans'].min(), arr['trans'].min())
+        #arr['trans'] = arr['trans']/arr['trans'].max()
+        #minV = arr['voltage'][arr['trans']==arr['trans'].min()]
+        #maxV = arr['voltage'][arr['trans']==arr['trans'].max()]
+        #if minV < maxV:
+        #    self.dev.pCellCurve = arr[arr['voltage']>minV * arr['voltage']<maxV]
+        #else:
+        #    self.dev.pCellCurve = arr[arr['voltage']<minV * arr['voltage']>maxV]
+        #    
+        #index['pCellCalibration'] = {'voltage': list(self.dev.pCellCurve['voltage']), 
+        #                             'trans': list(self.dev.pCellCurve['trans'])}
+
+    def runTransmissionCalibration(self, powerMeter=None, measureTime=0.1, settleTime=0.005, power=None, rate=100000):
         daqName = self.getDAQName()[0]
         duration = measureTime + settleTime
         nPts = int(rate * duration)
@@ -361,14 +368,14 @@ class Laser(DAQGeneric, OptomechDevice):
             powerInd = self.config['powerIndicator']['channel']
             cmdOff[powerInd[0]] = {powerInd[1]: {'record':True, 'recordInit':False}}
             
-        if pCellVoltage is not None:
+        if power is not None:
             #if self.hasPCell:
             if self.hasPowerModulation:
                 a = np.zeros(nPts, dtype=float)
-                a[:] = pCellVoltage
-                cmdOff[self.name()]['pCell'] = a
+                a[:] = power
+                #cmdOff[self.name()]['pCell'] = a
             else:
-                raise Exception("Laser device %s does not have a pCell, therefore no pCell voltage can be set." %self.name())
+                raise Exception("Laser device %s does not have power modulation, therefore power level can be set." %self.name())
             
         cmdOn = cmdOff.copy()
         wave = np.ones(nPts, dtype=np.byte)
@@ -404,10 +411,10 @@ class Laser(DAQGeneric, OptomechDevice):
             transmission = powerSampleOn/powerOutOn
             return (powerSampleOn, transmission)
        
-    def getCalibrationList(self):
+    def getTransmissionCalibrationList(self):
         """Return a list of available calibrations."""
         calList = []
-        index = self.getCalibrationIndex()
+        index = self.getTransmissionCalibrationIndex()
         if index.has_key('pCellCalibration'):
             index.pop('pCellCalibration')
         #self.microscopes.append(scope)
@@ -420,7 +427,7 @@ class Laser(DAQGeneric, OptomechDevice):
                 calList.append((opticState, wavelength, trans, power, date))
         return calList
         
-    def outputPower(self):
+    def outputPower(self, powerCmdVoltage=None):
         """
         Return the output power of the laser in Watts.
         
@@ -448,15 +455,26 @@ class Laser(DAQGeneric, OptomechDevice):
             
             dur = 0.1 + (sTime+mTime)
             nPts = int(dur*rate)
+            measureMode = self.measurementMode()
             
             ### create a switch waveform
-            waveform = np.zeros(nPts, dtype=np.byte)
-            waveform[0.1*rate:-2] = 1
+            if powerCmdVoltage is None:
+                waveform = np.zeros(nPts, dtype=np.byte)
+                waveform[0.1*rate:-2] = 1
+                laserCmd = {'switchWaveform':waveform, 'shutterMode': measureMode['shutter']}
+            elif not self.hasPowerModulation:
+                raise Exception("%s does not have power modulation, can't set a power command.")
+            else:
+                #raise Exception("ToDo: Make a way to specify power command.")
+                waveform = np.zeros(nPts, dtype=np.float)
+                waveform[:] = self.config['powerModulator'].get('offset', 0)
+                waveform[0.1*rate:-2] = powerCmdVoltage
+                laserCmd = {'powerModulator':waveform, 'shutterMode': measureMode['shutter']}
             
-            measureMode = self.measurementMode()
+            
             cmd = {
                 'protocol': {'duration': dur},
-                self.name(): {'switchWaveform':waveform, 'shutterMode': measureMode['shutter']},
+                self.name(): laserCmd,
                 powerInd[0]: {powerInd[1]: {'record':True, 'recordInit':False}},
                 daqName: {'numPts': nPts, 'rate': rate}
             }
@@ -500,7 +518,7 @@ class Laser(DAQGeneric, OptomechDevice):
 
     def updateSamplePower(self):
         ## Report new sample power given the current state of the laser
-        trans = self.getCalibration()
+        trans = self.getTransmissionCalibration()
         if trans is None:
             self.setParam(scopeTransmission=None)
             self.setParam(samplePower=None)
@@ -662,8 +680,8 @@ class LaserTask(DAQGenericTask):
                                        ## duration may only be specified if a modulator is available.
                                        
                                        
-                                       #####   Specifically specifying the daqGeneric cmd for the qSwitch, pCell or shutter gets precedent over waveforms that might be calculated from a 'powerWaveform', 'switchWaveform', or 'pulses' cmd
-        'pCell': {'command':array(....),               ## daqGeneric command that gets passed straight through
+                                       #####   Specifically specifying the daqGeneric cmd for the qSwitch, powerModulator or shutter gets precedent over waveforms that might be calculated from a 'powerWaveform', 'switchWaveform', or 'pulses' cmd
+        'powerModulator': {'command':array(....),               ## daqGeneric command that gets passed straight through
                   'preset': value
                   'holding': value}
         'qSwitch: {'command':array(....), etc}         ## array of 0/1 values that specify whether qSwitch is off (0) or on (1)           
@@ -698,8 +716,8 @@ class LaserTask(DAQGenericTask):
             cmd['daqProtocol']['shutter'] = {}
         if 'qSwitch' in dev.config:
             cmd['daqProtocol']['qSwitch'] = {}
-        if 'pCell' in dev.config:
-            cmd['daqProtocol']['pCell'] = {}
+        if 'powerModulator' in dev.config:
+            cmd['daqProtocol']['powerModulator'] = {}
             
         #cmd['daqProtocol']['power'] = {}
         
@@ -712,8 +730,8 @@ class LaserTask(DAQGenericTask):
                     cmd['daqProtocol']['shutter']['preset'] = 1 if alignConfig['shutter'] else 0
                 if 'qSwitch' in alignConfig:
                     cmd['daqProtocol']['qSwitch']['preset'] = 1 if alignConfig['qSwitch'] else 0
-                if 'pCell' in alignConfig:
-                    cmd['daqProtocol']['pCell']['preset'] = alignConfig['pCell']
+                if 'powerModulator' in alignConfig:
+                    cmd['daqProtocol']['powerModulator']['preset'] = alignConfig['powerModulator']
                 elif 'power' in alignConfig:
                     raise Exception("Alignment mode by power not implemented yet.")
                 
@@ -767,10 +785,10 @@ class LaserTask(DAQGenericTask):
                 # ## set to holding value, not 0
                 # self.cmd['daqProtocol']['shutter']['command'][-1] = 0
             
-        if 'pCell' in self.cmd:
-            self.cmd['daqProtocol']['pCell'] = self.cmd['pCell']
-        elif 'pCell' in calcCmds:
-            self.cmd['daqProtocol']['pCell']['command'] = calcCmds['pCell']
+        if 'powerModulator' in self.cmd:
+            self.cmd['daqProtocol']['powerModulator'] = self.cmd['powerModulator']
+        elif 'powerModulator' in calcCmds:
+            self.cmd['daqProtocol']['powerModulator']['command'] = calcCmds['powerModulator']
             
         if 'qSwitch' in self.cmd:
             self.cmd['daqProtocol']['qSwitch'] = self.cmd['qSwitch']
@@ -797,7 +815,7 @@ class LaserTask(DAQGenericTask):
         
         daqInfo = result._info[-1]['DAQ']
         ## find DAQ info for any output channel
-        for ch in ['shutter', 'qSwitch', 'pCell']:
+        for ch in ['shutter', 'qSwitch', 'powerModulator']:
             if ch in daqInfo:
                 ds = daqInfo[ch].get('downsampling', 1)
                 break

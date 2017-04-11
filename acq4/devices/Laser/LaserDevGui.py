@@ -33,6 +33,8 @@ class LaserDevGui(QtGui.QWidget):
         if not self.dev.hasPowerModulation:
             #self.ui.pCellGroup.hide()
             self.ui.powerModTab.setEnabled(False)
+            self.ui.powerToUseSpin.hide()
+            self.ui.powerToUseLabel.hide()
         else:
             self.ui.expectedPowerGroup.hide()
             self.ui.minVSpin.setOpts(step=0.1, minStep=0.01, siPrefix=True, dec=True)
@@ -245,7 +247,7 @@ class LaserDevGui(QtGui.QWidget):
 
     def updateCalibrationList(self):
         self.ui.calibrationList.clear()
-        for opticState, wavelength, trans, power, date in self.dev.getCalibrationList():
+        for opticState, wavelength, trans, power, date in self.dev.getTransmissionCalibrationList():
             item = QtGui.QTreeWidgetItem([str(opticState), str(wavelength), '%.2f' %(trans*100) + '%', siFormat(power, suffix='W'), date])
             item.key = opticState
             self.ui.calibrationList.addTopLevelItem(item)
@@ -262,7 +264,8 @@ class LaserDevGui(QtGui.QWidget):
                 powerMeter = unicode(self.ui.meterCombo.currentText())
                 mTime = self.ui.measurementSpin.value()
                 sTime = self.ui.settlingSpin.value()
-                self.dev.calibrate(powerMeter, mTime, sTime)
+                power = self.ui.powerToUseSpin.value()
+                self.dev.calibrateTransmission(powerMeter, mTime, sTime, power=power)
                 self.updateCalibrationList()
             except:
                 raise
@@ -272,7 +275,7 @@ class LaserDevGui(QtGui.QWidget):
     def resetCalibrateBtnState(self):
         self.calibrateBtnState = 0
         self.ui.calibrateBtn.setEnabled(True)
-        self.ui.calibrateBtn.setText('Calibrate')
+        self.ui.calibrateBtn.setText('Calibrate Transmission')
         
     def calBtnLostFocus(self, ev):
         self.resetCalibrateBtnState()
@@ -287,7 +290,7 @@ class LaserDevGui(QtGui.QWidget):
         #opticState = str(cur.text(0))
         opticState = cur.key
         
-        index = self.dev.getCalibrationIndex()
+        index = self.dev.getTransmissionCalibrationIndex()
         
         del index[opticState]
 
