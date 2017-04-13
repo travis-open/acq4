@@ -138,9 +138,9 @@ class Laser(DAQGeneric, OptomechDevice):
        
         self.lock = Mutex(QtCore.QMutex.Recursive)
         self.variableLock = Mutex(QtCore.QMutex.Recursive)
-        self.calibrationIndex = None
+        self.transmissionCalibrationIndex = None
         #self.pCellCalibration = None
-        self.powerCalibration = None
+        self.powerCalibrationIndex = None
         self.getPowerHistory()
         
         #self.scope = manager.getDevice(self.config['scope'])
@@ -161,13 +161,20 @@ class Laser(DAQGeneric, OptomechDevice):
     
     def getTransmissionCalibrationIndex(self):
         with self.lock:
-            if self.calibrationIndex is None:
-                index = self.readConfigFile('index')
-                self.calibrationIndex = index
+            if self.transmissionCalibrationIndex is None:
+                index = self.readConfigFile('transmissionCalibration')
+                self.transmissionCalibrationIndex = index
                 #self.pCellCalibration = index.get('pCellCalibration', None)
-                self.powerCalibration = index.get('powerCalibration', None)
-            return self.calibrationIndex
-        
+                #self.powerCalibration = index.get('powerCalibration', None)
+            return self.transmissionCalibrationIndex
+
+    def getPowerCalibrationIndex(self):
+        with self.lock:
+            if self.powerCalibrationIndex is None:
+                index = self.readConfigFile('powerCalibration')
+                self.powerCalibrationIndex = index
+            return self.powerCalibrationIndex
+
     def getPowerHistory(self):
         with self.variableLock:
             ph = self.readConfigFile('powerHistory')
@@ -186,10 +193,15 @@ class Laser(DAQGeneric, OptomechDevice):
             date = str(time.strftime('%Y.%m.%d %H:%M:%S'))
             self.appendConfigFile({'entry_'+str(self.powerHistoryCount):{'date': date, 'expectedPower':power}}, 'powerHistory')
 
-    def writeCalibrationIndex(self, index):
+    def writeTransmissionCalibrationIndex(self, index):
         with self.lock:
-            self.writeConfigFile(index, 'index')
-            self.calibrationIndex = index
+            self.writeConfigFile(index, 'transmissionCalibration')
+            self.transmissionCalibrationIndex = index
+
+    def writePowerCalibrationIndex(self, index):
+        with self.lock:
+            self.writeConfigFile(index, 'powerCalibration')
+            self.powerCalibrationIndex = index
         
     def setAlignmentMode(self, b):
         """If true, configures the laser for low-power alignment mode. 
@@ -319,22 +331,30 @@ class Laser(DAQGeneric, OptomechDevice):
             index[opticState] = {}
         index[opticState][wavelength] = {'power': power, 'transmission':transmission, 'date': date}
 
-        self.writeCalibrationIndex(index)
+        self.writeTransmissionCalibrationIndex(index)
         self.updateSamplePower()
         
-    def calibratePower(self):
+    def calibratePower(self, minVoltage, maxVoltage, steps):
         if not self.hasPowerModulation():
             raise Exception("Power calibration is only applicable to lasers with power modulation (a pockels cell or other analog control).")
 
-        minVal = self.ui.minVSpin.value()
-        maxVal = self.ui.maxVSpin.value()
-        steps = self.ui.stepsSpin.value()
+        
         arr = np.zeros(steps, dtype=[('voltage', float), ('power', float)])
-        for i,v in enumerate(np.linspace(minVal, maxVal, steps)):
+        for i,v in enumerate(np.linspace(minVoltage, maxVoltage, steps)):
             #p, t = self.runCalibration(pCellVoltage=v) ### returns power at sample(or where powermeter was), and transmission through whole system
             p = self.outputPower(powerCmdVoltage=v)
             arr[i]['power']= p
             arr[i]['voltage']= v
+
+        date = time.strftime('%Y.%m.%d %H:%M', time.localtime())
+        index = self.getPowerCalibrationIndex()
+        wl = self.getWavelength()
+        if wl not in index:
+            index[wl] = {}
+        index[wl]['data'] = arr
+        index[wl]['date'] = date
+
+        self.writePowerCalibrationIndex(index)
 
         ### ToDo:
         ###     1: Fit voltage/power to function -- there should probably be options for functions to fit data to including linear fit and sine fit
