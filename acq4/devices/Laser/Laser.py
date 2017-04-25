@@ -333,45 +333,6 @@ class Laser(DAQGeneric, OptomechDevice):
 
         self.writeTransmissionCalibrationIndex(index)
         self.updateSamplePower()
-        
-    def calibratePower(self, minVoltage, maxVoltage, steps):
-        if not self.hasPowerModulation():
-            raise Exception("Power calibration is only applicable to lasers with power modulation (a pockels cell or other analog control).")
-
-        
-        arr = np.zeros(steps, dtype=[('voltage', float), ('power', float)])
-        for i,v in enumerate(np.linspace(minVoltage, maxVoltage, steps)):
-            #p, t = self.runCalibration(pCellVoltage=v) ### returns power at sample(or where powermeter was), and transmission through whole system
-            p = self.outputPower(powerCmdVoltage=v)
-            arr[i]['power']= p
-            arr[i]['voltage']= v
-
-        date = time.strftime('%Y.%m.%d %H:%M', time.localtime())
-        index = self.getPowerCalibrationIndex()
-        wl = self.getWavelength()
-        if wl not in index:
-            index[wl] = {}
-        index[wl]['data'] = arr
-        index[wl]['date'] = date
-
-        self.writePowerCalibrationIndex(index)
-
-        ### ToDo:
-        ###     1: Fit voltage/power to function -- there should probably be options for functions to fit data to including linear fit and sine fit
-        ###     2: Write calibration parameters to index. wavelength:{'date':data, 'function':'linear', 'parameters':[]}
-
-        #power = (min(power), max(power))
-        #transmission = (arr['trans'].min(), arr['trans'].min())
-        #arr['trans'] = arr['trans']/arr['trans'].max()
-        #minV = arr['voltage'][arr['trans']==arr['trans'].min()]
-        #maxV = arr['voltage'][arr['trans']==arr['trans'].max()]
-        #if minV < maxV:
-        #    self.dev.pCellCurve = arr[arr['voltage']>minV * arr['voltage']<maxV]
-        #else:
-        #    self.dev.pCellCurve = arr[arr['voltage']<minV * arr['voltage']>maxV]
-        #    
-        #index['pCellCalibration'] = {'voltage': list(self.dev.pCellCurve['voltage']), 
-        #                             'trans': list(self.dev.pCellCurve['trans'])}
 
     def runTransmissionCalibration(self, powerMeter=None, measureTime=0.1, settleTime=0.005, power=None, rate=100000):
         daqName = self.getDAQName()[0]

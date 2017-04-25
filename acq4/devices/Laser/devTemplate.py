@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'acq4\devices\Laser\devTemplate.ui'
 #
-# Created: Thu Apr 13 12:58:50 2017
+# Created: Tue Apr 25 16:55:28 2017
 #      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -287,7 +287,6 @@ class Ui_Form(object):
         self.label_11.setObjectName(_fromUtf8("label_11"))
         self.gridLayout_7.addWidget(self.label_11, 0, 2, 1, 1)
         self.stepsSpin = SpinBox(self.powerModGroup)
-        self.stepsSpin.setDecimals(0)
         self.stepsSpin.setMinimum(10.0)
         self.stepsSpin.setMaximum(1000.0)
         self.stepsSpin.setProperty("value", 20.0)

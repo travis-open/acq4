@@ -4,6 +4,7 @@ from devTemplate import Ui_Form
 import numpy as np
 from scipy import stats
 from acq4.pyqtgraph.functions import siFormat
+import acq4.util.functions as fn
 import time
 
 
@@ -65,6 +66,14 @@ class LaserDevGui(QtGui.QWidget):
         self.ui.meterCombo.setCurrentText(defPowerMeter)
         powerInd = self.dev.config.get('powerIndicator', {}).get('channel', ['None configured'])[0]
         self.ui.powerIndicatorLabel.setText(str(powerInd))
+
+        self.ui.powerPlot.getPlotItem().getAxis('bottom').setLabel(units='V')
+        self.ui.powerPlot.getPlotItem().getAxis('left').setLabel(units='W')
+        self.ui.stepsSpin.setOpts(int=True, step=1, dec=True)
+
+        for f in ['linear', 'sine', 'sigmoid']:
+            self.ui.fitFunctionCombo.addItem(f)
+
         #devs = self.dev.dm.listDevices()
         #for d in devs:
             #self.ui.microscopeCombo.addItem(d)
@@ -299,13 +308,112 @@ class LaserDevGui(QtGui.QWidget):
     
 
     def calibratePowerClicked(self):
-        pass
+        if not self.dev.hasPowerModulation:
+            raise Exception("Power calibration is only applicable to lasers with power modulation (a pockels cell or other analog control).")
+        try:
+            self.ui.calibratePowerBtn.setEnabled(False)
+            self.ui.calibratePowerBtn.setText('Calibrating....')
+            self.calibratePower()
+        except:
+            raise
+        finally:
+            self.ui.calibratePowerBtn.setText('Calibrate Power')
+            self.ui.calibratePowerBtn.setEnabled(True)
+
+    def calibratePower(self):
+        minVoltage = self.ui.minVSpin.value()
+        maxVoltage = self.ui.maxVSpin.value()
+        steps = self.ui.stepsSpin.value()
+        
+        arr = np.zeros(steps, dtype=[('voltage', float), ('power', float)])
+        for i,v in enumerate(np.linspace(minVoltage, maxVoltage, steps)):
+            #p, t = self.runCalibration(pCellVoltage=v) ### returns power at sample(or where powermeter was), and transmission through whole system
+            p = self.dev.outputPower(powerCmdVoltage=v)
+            arr[i]['power']= p
+            arr[i]['voltage']= v
+
+        self.savePowerValues(arr)
+        self.ui.powerPlot.clear()
+        self.ui.powerPlot.plot(arr['voltage'], arr['power'], pen=None, symbol='o', symbolBrush='w', symbolPen=None)
+        result = self.fitPowerCurve(plotFit=True)
+        self.savePowerFit(result)
+        self.updatePowerCalibrationTree()
+
+    def savePowerValues(self, arr):
+        date = time.strftime('%Y.%m.%d %H:%M', time.localtime())
+        index = self.dev.getPowerCalibrationIndex()
+        wl = self.dev.getWavelength()
+        if wl not in index:
+            index[wl] = {}
+        index[wl]['data'] = arr
+        index[wl]['date'] = date
+
+        self.dev.writePowerCalibrationIndex(index)
+
+    def savePowerFit(self, result):
+        index = self.dev.getPowerCalibrationIndex()
+        wl = self.dev.getWavelength()
+        if wl not in index:
+            raise Exception("No power calibration data stored for %s. Please run power calibration first." % wl)
+
+        index[wl]['function'] = result[-1]
+        index[wl]['fitParams'] = result[:-3]
+        index[wl]['fitError'] = result[-2]
+
+        self.dev.writePowerCalibrationIndex(index)
+
+    def fitPowerCurve(self, data=None, function=None, plotFit=False):
+        if data is None:
+            index = self.dev.getPowerCalibrationIndex()
+            wl = self.dev.getWavelength()
+            if wl not in index:
+                raise Exception('No power calibration data stored for this wavelength: %s' % wl)
+            data = index[wl]['data']
+
+        if function is None:
+            function = self.ui.fitFunctionCombo.currentText()
+
+        xvals = data['voltage']
+        yvals = data['power']
+
+        if function == 'linear':
+            guess = [0.15, 0] ## guess 15mW/V and 0 offset
+            func = fn.linear
+        elif function == 'sine':
+            guess = [1, 1, 0, 0] ## need to refine this [amplitude, frequency, x-offset, y-offset]
+            func = fn.sinewave
+        elif function == 'sigmoid':
+            guess = [1, 0, 1, 0] ## need to refine this too [slope, x-offset, amplitude, y-offset]
+            func = fn.sigmoid
+        
+        result = fn.fit(func, xvals, yvals, guess, generateResult=True, measureError=True)
+        params = result[:-2]
+        res = result[-2]
+        error = result[-1]
+
+        if plotFit:
+            self.ui.powerPlot.plot(xvals, res, pen='r')
+
+        return result + (function,)
 
     def deletePowerCalibrationClicked(self):
-        pass
+        cur = self.ui.powerCalibrationTree.currentItem()
+        if cur is None:
+            return
+        wl = cur.key
+        
+        index = self.dev.getPowerCalibrationIndex()
+        
+        del index[wl]
+
+        self.dev.writePowerCalibrationIndex(index)
+        self.updatePowerCalibrationTress()
 
     def updatePowerCalibrationTree(self):
-        pass
-        
-       
+        self.ui.powerCalibrationTree.clear()
+        index = self.dev.getPowerCalibrationIndex()
+        for wl, v in index.iteritems():
+            item = QtGui.QTreeWidgetItem([str(wl), str(v['date']), str(v.get('function', '')), str(v.get('fitParams','')), str(v.get('fitError', ''))])
+            item.key = wl
+            self.ui.powerCalibrationTree.addTopLevelItem(item)
         
