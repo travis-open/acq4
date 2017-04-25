@@ -58,6 +58,14 @@ def gaussian(v, x):
     """Gaussian function value at x. The parameter v is [amplitude, x-offset, sigma, y-offset]"""
     return v[0] * np.exp(-((x-v[1])**2) / (2 * v[2]**2)) + v[3]
 
+def linear(v, x):
+    """Linear function at x. V is [slope, y-offset]."""
+    return v[0]*x + v[1]
+
+def sinewave(v, x):
+    "Sinusoidal function at x. the parameter v is [amplitude, frequency, x-offset, y-offset]"
+    return v[0] * (np.sine(v[1]*x + v[2])) + v[3] 
+
 def expDecay(v, x):
     """Exponential decay function valued at x. Parameter vector is [amplitude, tau]"""
     return v[0] * np.exp(-x / v[1]) #+ v[2]
