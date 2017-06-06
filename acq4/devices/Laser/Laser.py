@@ -8,6 +8,7 @@ from LaserDevGui import LaserDevGui
 from LaserTaskGui import LaserTaskGui
 import os
 import time
+import copy
 import numpy as np
 from scipy import stats
 from acq4.pyqtgraph.functions import siFormat
@@ -172,6 +173,9 @@ class Laser(DAQGeneric, OptomechDevice):
         with self.lock:
             if self.powerCalibrationIndex is None:
                 index = self.readConfigFile('powerCalibration')
+                for wl, v in index.iteritems():
+                    if type(v['data']) == type('') and 'array' in v['data']:  ## because we converted arrays to strings before sending to configfile (bug workaround), we need to convert them back here
+                        v['data'] = eval(v['data'], {'array':np.array})
                 self.powerCalibrationIndex = index
             return self.powerCalibrationIndex
 
@@ -200,9 +204,11 @@ class Laser(DAQGeneric, OptomechDevice):
 
     def writePowerCalibrationIndex(self, index):
         with self.lock:
+            self.powerCalibrationIndex = copy.deepcopy(index)
+            for wl, v in index.iteritems():
+                v['data'] = repr(v['data']).replace('\n', '').replace(' ', '')  ## convert voltage/power arrays to strings, strip out line breaks <-- because configfile won't be able to read it back in if there are line breaks
             self.writeConfigFile(index, 'powerCalibration')
-            self.powerCalibrationIndex = index
-        
+                    
     def setAlignmentMode(self, b):
         """If true, configures the laser for low-power alignment mode. 
         Note: If the laser achieves low power solely through PWM, then

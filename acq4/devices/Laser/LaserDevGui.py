@@ -342,7 +342,7 @@ class LaserDevGui(QtGui.QWidget):
     def savePowerValues(self, arr):
         date = time.strftime('%Y.%m.%d %H:%M', time.localtime())
         index = self.dev.getPowerCalibrationIndex()
-        wl = self.dev.getWavelength()
+        wl = siFormat(self.dev.getWavelength(), suffix='m')
         if wl not in index:
             index[wl] = {}
         index[wl]['data'] = arr
@@ -352,7 +352,7 @@ class LaserDevGui(QtGui.QWidget):
 
     def savePowerFit(self, result):
         index = self.dev.getPowerCalibrationIndex()
-        wl = self.dev.getWavelength()
+        wl = siFormat(self.dev.getWavelength(), suffix='m')
         if wl not in index:
             raise Exception("No power calibration data stored for %s. Please run power calibration first." % wl)
 
@@ -365,7 +365,7 @@ class LaserDevGui(QtGui.QWidget):
     def fitPowerCurve(self, data=None, function=None, plotFit=False):
         if data is None:
             index = self.dev.getPowerCalibrationIndex()
-            wl = self.dev.getWavelength()
+            wl = siFormat(self.dev.getWavelength(), suffix='m')
             if wl not in index:
                 raise Exception('No power calibration data stored for this wavelength: %s' % wl)
             data = index[wl]['data']
