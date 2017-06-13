@@ -407,7 +407,7 @@ class LaserDevGui(QtGui.QWidget):
         del index[wl]
 
         self.dev.writePowerCalibrationIndex(index)
-        self.updatePowerCalibrationTress()
+        self.updatePowerCalibrationTree()
 
     def updatePowerCalibrationTree(self):
         self.ui.powerCalibrationTree.clear()
