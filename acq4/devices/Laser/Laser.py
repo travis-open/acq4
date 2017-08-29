@@ -497,7 +497,9 @@ class Laser(DAQGeneric, OptomechDevice):
             self.sigSamplePowerChanged.emit(None)
         else:
             self.setParam(scopeTransmission=trans)
-            power = self.getParam('currentPower') * trans
+            power = self.getParam('currentPower')
+            if power is not None:
+                power = power * trans
             self.setParam(samplePower=power)
             self.sigSamplePowerChanged.emit(power)
         
